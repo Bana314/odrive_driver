@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>odrive_driver</name>
+  <version>0.0.1</version>
+  <description>Driver for oDrive</description>
+  <maintainer email="richard9661h@gmail.com">Richard M. Haes-Ellis</maintainer>
+  <license>BSD</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>hardware_interface</build_depend>
+  <build_depend>controller_manager</build_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>hardware_interface</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <depend>dynamic_reconfigure</depend>
+  <depend>tf</depend>
+  <depend>nav_msgs</depend>
+  <export>
+  </export>
+</package>
