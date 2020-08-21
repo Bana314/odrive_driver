@@ -19,10 +19,8 @@ public:
     odrive_diff();
     ~odrive_diff();
 
-    int init();
-
     void read();
-    void write();
+    void write(uint8_t drive_state);
     void updateWD();
 
     std::string od_cfg;
@@ -55,6 +53,7 @@ private:
     uint16_t u16val;
     uint8_t u8val;
     float fval;
+    uint8_t prv_state;
 
     uint8_t connected;
 

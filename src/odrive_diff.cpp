@@ -46,6 +46,8 @@ odrive_diff::odrive_diff()
   wheel_radius     = WHEEL_RADIUS;
   wheel_separation = WHEEL_SEPARATION;
 
+  prv_state = AXIS_STATE_IDLE;
+
   /****** ODRIVE USB SETUP *******/
 
   // Get odrive endpoint instance
@@ -107,10 +109,6 @@ odrive_diff::odrive_diff()
   dsrv->setCallback(cb);
 }
 
-int odrive_diff::init(){
-  return 1;
-}
-
 odrive_diff::~odrive_diff()
 {
   // Set velocity
@@ -127,35 +125,48 @@ void odrive_diff::reconfigure_callback(odrive_driver::OdriveConfig &_config, uin
   config = _config;
   have_config = true;
 
-  // printf("[ODRIVE] No configuration available for now.")
-  // printf("[ODRIVE] Reconfiguring PID to [%f, %f, %f]\n", config.Kp, config.Ki, config.Kd);
+  printf("[ODRIVE] Reconfiguring PID to [%f, %f, %f]\n", config.Kp, config.Ki, config.Kd);
 
-  // // Set P gain
-  // fval = (float)config.Kp;
-  // writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.config.pos_gain"), fval);
-  // writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.config.pos_gain"), fval);
+  // Arm axis 0 
+  u8val = AXIS_STATE_IDLE;
+  writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
+  // Arm axis 1
+  u8val = AXIS_STATE_IDLE;
+  writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val);
 
-  // // Set I gain
-  // fval = (float)config.Ki;
-  // writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.config.vel_integrator_gain"), fval);
-  // writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.config.vel_integrator_gain"), fval);
+  // Set P gain
+  fval = (float)config.Kp;
+  writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.config.pos_gain"), fval);
+  writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.config.pos_gain"), fval);
 
-  // // Set D gain 
-  // fval = (float)config.Kd;
-  // writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.config.vel_gain"), fval);
-  // writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.config.vel_gain"), fval);
+  // Set I gain
+  fval = (float)config.Ki;
+  writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.config.vel_integrator_gain"), fval);
+  writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.config.vel_integrator_gain"), fval);
 
-  // float kp0,kp1,ki0,ki1,kd0,kd1;
+  // Set D gain 
+  fval = (float)config.Kd;
+  writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.config.vel_gain"), fval);
+  writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.config.vel_gain"), fval);
 
-  // readOdriveData(endpoint, odrive_json, std::string("axis0.controller.config.pos_gain"), kp0);
-  // readOdriveData(endpoint, odrive_json, std::string("axis1.controller.config.pos_gain"), kp1);
-  // readOdriveData(endpoint, odrive_json, std::string("axis0.controller.config.vel_integrator_gain"), ki0);
-  // readOdriveData(endpoint, odrive_json, std::string("axis1.controller.config.vel_integrator_gain"), ki1);
-  // readOdriveData(endpoint, odrive_json, std::string("axis0.controller.config.vel_gain"), kd0);
-  // readOdriveData(endpoint, odrive_json, std::string("axis1.controller.config.vel_gain"), kd1);
+  float kp0,kp1,ki0,ki1,kd0,kd1;
+
+  readOdriveData(endpoint, odrive_json, std::string("axis0.controller.config.pos_gain"), kp0);
+  readOdriveData(endpoint, odrive_json, std::string("axis1.controller.config.pos_gain"), kp1);
+  readOdriveData(endpoint, odrive_json, std::string("axis0.controller.config.vel_integrator_gain"), ki0);
+  readOdriveData(endpoint, odrive_json, std::string("axis1.controller.config.vel_integrator_gain"), ki1);
+  readOdriveData(endpoint, odrive_json, std::string("axis0.controller.config.vel_gain"), kd0);
+  readOdriveData(endpoint, odrive_json, std::string("axis1.controller.config.vel_gain"), kd1);
 
 
-  // printf("[ODRIVE] Reconfigured values for PID Axis0: [%f, %f, %f] Axis1: [%f, %f, %f]\n", kp0, ki0, kd0, kp1, ki1, kd1);
+  printf("[ODRIVE] Reconfigured values for PID Axis0: [%f, %f, %f] Axis1: [%f, %f, %f]\n", kp0, ki0, kd0, kp1, ki1, kd1);
+
+  // Arm axis 0 
+  u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
+  writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
+  // Arm axis 1
+  u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
+  writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val);
 
 }
 
@@ -182,16 +193,6 @@ void odrive_diff::read()
   {
     ROS_ERROR("[ODRIVE] Axis error has ocurred, shutting down..");
     ros::shutdown();
-  }
-
-  if(state0 != 8)
-  {
-    ROS_ERROR("[ODRIVE] Axis 0 changed state to: %d",state0);
-  }
-
-  if(state1 != 8)
-  {
-    ROS_ERROR("[ODRIVE] Axis 1 changed state to: %d",state1);
   }
 
   readOdriveData(endpoint, odrive_json,
@@ -311,7 +312,7 @@ void odrive_diff::read()
 
 }
 
-void odrive_diff::write()
+void odrive_diff::write(uint8_t motor_state)
 {
 
   // Inform interested parties about the commands we've got
@@ -322,13 +323,37 @@ void odrive_diff::write()
   double left_speed = -1 *DIRECTION_CORRECTION * (joints[0].cmd.data/(2*PI)) * encoder_CPR;
   double right_speed =    DIRECTION_CORRECTION * (joints[1].cmd.data/(2*PI)) *  encoder_CPR;
 
-  // Set velocity
-  fval = (float)left_speed;
-  writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.vel_setpoint"), fval);
-  // Set velocity
-  fval = (float)right_speed;
-  writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.vel_setpoint"), fval);
-  
+  if(motor_state == AXIS_STATE_IDLE){
+    // Set velocity (Save guard velcity zero always)
+    fval = 0;
+    writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.vel_setpoint"), fval);
+    writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.vel_setpoint"), fval);
+
+    if(prv_state == AXIS_STATE_CLOSED_LOOP_CONTROL){
+      // Set idle only once when comming from closed loop control
+      u8val = AXIS_STATE_IDLE;
+      writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
+      writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val);
+      prv_state = AXIS_STATE_IDLE;
+    }
+     
+  }else if(motor_state == AXIS_STATE_CLOSED_LOOP_CONTROL){
+    if(prv_state == AXIS_STATE_IDLE)
+    {
+      // Arm motors only once when comming back from idle state
+      u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
+      writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
+      writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val); 
+      prv_state = AXIS_STATE_CLOSED_LOOP_CONTROL;
+    }
+    
+    // Set velocity
+    fval = (float)left_speed;
+    writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.vel_setpoint"), fval);
+    // Set velocity
+    fval = (float)right_speed;
+    writeOdriveData(endpoint, odrive_json,std::string("axis1.controller.vel_setpoint"), fval);
+  }
 }
 
 void odrive_diff::updateWD(void){
