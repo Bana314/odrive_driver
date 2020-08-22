@@ -5,6 +5,7 @@
 #include <hardware_interface/robot_hw.h>
 #include <realtime_tools/realtime_buffer.h>
 #include <std_msgs/Float64.h>
+#include <sensor_msgs/Joy.h>
 #include <std_msgs/Int8.h>
 #include <dynamic_reconfigure/server.h>
 #include "odrive_driver//OdriveConfig.h"
@@ -21,7 +22,7 @@ public:
     ~odrive_diff();
 
     void read();
-    void write(uint8_t drive_state);
+    void write();
     void updateWD();
 
     std::string od_cfg;
@@ -59,7 +60,10 @@ private:
     uint8_t connected;
 
     std::string cmd;
+
     std_msgs::Int8 val8;
+    uint8_t driver_state;
+    int32_t prv_btn_state;
 
     std_msgs::Float64 vbus;     // Bus voltage
     int32_t error0; // Axis 0 error
@@ -98,17 +102,15 @@ private:
 
     // For debug purposes only
     ros::NodeHandle nh;
+
     ros::Publisher state_pub;
-    // ros::Publisher left_pos_pub, right_pos_pub;
-    // ros::Publisher left_vel_pub, right_vel_pub;
-    // ros::Publisher left_eff_pub, right_eff_pub;
-    // ros::Publisher left_cmd_pub, right_cmd_pub;
-    
-    
+    ros::Subscriber sub;
     ros::Publisher vbus_pub;
     ros::Publisher odom_encoder_pub;
 
     tf::TransformBroadcaster odom_broadcaster;
+
+    void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);  
 
     // Supporting dynamic reconfigure for PID control
     dynamic_reconfigure::Server<odrive_driver::OdriveConfig> *dsrv;

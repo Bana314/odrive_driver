@@ -1,12 +1,10 @@
 #include "config.h"
 #include "odrive_diff.h"
-
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <dynamic_reconfigure/server.h>
 #include <string>
-#include <std_msgs/Int8.h>
 #include <iostream>
 #include <fstream>
 #include <math.h>
@@ -29,26 +27,19 @@ odrive_diff::odrive_diff()
   registerInterface(&velocity_joint_interface);
 
   // These publishers are only for debugging purposes
-  ros::Publisher  state_pub = nh.advertise<std_msgs::Int8>("ODriver/state", 3);  
-  // left_pos_pub = nh.advertise<std_msgs::Float64>("ODriver/left_wheel/position", 3);
-  // right_pos_pub = nh.advertise<std_msgs::Float64>("ODriver/right_wheel/position", 3);
-  // left_vel_pub = nh.advertise<std_msgs::Float64>("ODriver/left_wheel/velocity", 3);
-  // right_vel_pub = nh.advertise<std_msgs::Float64>("ODriver/right_wheel/velocity", 3);
-  // left_eff_pub = nh.advertise<std_msgs::Float64>("ODriver/left_wheel/eff", 3);
-  // right_eff_pub = nh.advertise<std_msgs::Float64>("ODriver/right_wheel/eff", 3);
-  // left_cmd_pub = nh.advertise<std_msgs::Float64>("ODriver/left_wheel/cmd", 3);
-  // right_cmd_pub = nh.advertise<std_msgs::Float64>("ODriver/right_wheel/cmd", 3);
-
-  vbus_pub = nh.advertise<std_msgs::Float64>("odrive/vbus", 3);
-
-  // Odometry 
-  odom_encoder_pub = nh.advertise<nav_msgs::Odometry>("odom", 50);
+  state_pub         = nh.advertise<std_msgs::Int8>("odrive/state", 3);  
+  vbus_pub          = nh.advertise<std_msgs::Float64>("odrive/vbus", 3);
+  sub               = nh.subscribe("joy", 1000, &odrive_diff::joyCallback,this);
+  odom_encoder_pub  = nh.advertise<nav_msgs::Odometry>("odom", 50); // Odometry 
 
   // FIXME! Read parameters from ROS
   wheel_radius     = WHEEL_RADIUS;
   wheel_separation = WHEEL_SEPARATION;
 
+  // State of the driver
   prv_state = AXIS_STATE_IDLE;
+  driver_state = AXIS_STATE_IDLE;
+  prv_btn_state = 0;
 
   /****** ODRIVE USB SETUP *******/
 
@@ -98,17 +89,18 @@ odrive_diff::odrive_diff()
 
   /******** ODRIVE FINISH USB SETUP *******/
   
-  // Arm axis 0 
-  u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
-  writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
-  // Arm axis 1
-  u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
-  writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val);
+  // // Arm axis 0 
+  // u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
+  // writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
+  // // Arm axis 1
+  // u8val = AXIS_STATE_CLOSED_LOOP_CONTROL;
+  // writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val);
  
   // Support dynamic reconfigure
   dsrv = new dynamic_reconfigure::Server<odrive_driver::OdriveConfig>(ros::NodeHandle("~"));
   dynamic_reconfigure::Server<odrive_driver::OdriveConfig>::CallbackType cb = boost::bind(&odrive_diff::reconfigure_callback, this, _1, _2);
   dsrv->setCallback(cb);
+
   val8.data = 0;
   state_pub.publish(val8);
 }
@@ -317,7 +309,7 @@ void odrive_diff::read()
 
 }
 
-void odrive_diff::write(uint8_t motor_state)
+void odrive_diff::write()
 {
 
   // Inform interested parties about the commands we've got
@@ -328,7 +320,7 @@ void odrive_diff::write(uint8_t motor_state)
   double left_speed = -1 *DIRECTION_CORRECTION * (joints[0].cmd.data/(2*PI)) * encoder_CPR;
   double right_speed =    DIRECTION_CORRECTION * (joints[1].cmd.data/(2*PI)) *  encoder_CPR;
 
-  if(motor_state == AXIS_STATE_IDLE){
+  if(driver_state == AXIS_STATE_IDLE){
     // Set velocity (Save guard velcity zero always)
     fval = 0;
     writeOdriveData(endpoint, odrive_json,std::string("axis0.controller.vel_setpoint"), fval);
@@ -344,7 +336,7 @@ void odrive_diff::write(uint8_t motor_state)
       state_pub.publish(val8);
 	}
      
-  }else if(motor_state == AXIS_STATE_CLOSED_LOOP_CONTROL){
+  }else if(driver_state == AXIS_STATE_CLOSED_LOOP_CONTROL){
     if(prv_state == AXIS_STATE_IDLE)
     {
       // Arm motors only once when comming back from idle state
@@ -369,4 +361,22 @@ void odrive_diff::updateWD(void){
   // update watchdog
   execOdriveFunc(endpoint, odrive_json, "axis0.watchdog_feed");
   execOdriveFunc(endpoint, odrive_json, "axis1.watchdog_feed");
+}
+
+void odrive_diff::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
+{   
+    // If it was low and now its high
+    if(prv_btn_state == 0 && joy->buttons[2] == 1){
+        if(driver_state == AXIS_STATE_IDLE)
+        {
+            printf("[ODRIVE] Motors armed.\n");
+            driver_state = AXIS_STATE_CLOSED_LOOP_CONTROL;
+        }else
+        {
+            printf("[ODRIVE] Motors disarmed.\n");
+            driver_state = AXIS_STATE_IDLE;
+        }
+        
+    }
+    prv_btn_state = joy->buttons[2];
 }

@@ -18,6 +18,6 @@
 
 
         <!-- ROS control -->
-        <include file="$(find odrive_driver)/launch/odrive.launch" /> -->
-         
+        <include file="$(find odrive_driver)/launch/odrive.launch" /> 
+	<include file="$(find odrive_driver)/launch/arduino.launch" />         
 </launch>
