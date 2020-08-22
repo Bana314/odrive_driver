@@ -2,6 +2,7 @@
 #include <controller_manager/controller_manager.h>
 #include <dynamic_reconfigure/server.h>
 #include <sensor_msgs/Joy.h>
+#include <std_msgs/Int8.h>
 #include "odrive_diff.h"
 
 uint8_t drive_state = AXIS_STATE_IDLE;
@@ -34,13 +35,13 @@ int main(int argc, char **argv) {
     controller_manager::ControllerManager cm(&robot);
 
     ros::NodeHandle n;
-    ros::Subscriber sub = n.subscribe("joy", 1000, joyCallback);
-
+    ros::Subscriber sub       = n.subscribe("joy", 1000, joyCallback);
     ros::AsyncSpinner spinner(1);
     spinner.start();
 
     ros::Time prev_time = ros::Time::now();
     ros::Rate rate(50.0);
+
 
     while (ros::ok()) {
         const ros::Time time = ros::Time::now();

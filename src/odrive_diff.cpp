@@ -6,6 +6,7 @@
 #include <termios.h>
 #include <dynamic_reconfigure/server.h>
 #include <string>
+#include <std_msgs/Int8.h>
 #include <iostream>
 #include <fstream>
 #include <math.h>
@@ -28,6 +29,7 @@ odrive_diff::odrive_diff()
   registerInterface(&velocity_joint_interface);
 
   // These publishers are only for debugging purposes
+  ros::Publisher  state_pub = nh.advertise<std_msgs::Int8>("ODriver/state", 3);  
   // left_pos_pub = nh.advertise<std_msgs::Float64>("ODriver/left_wheel/position", 3);
   // right_pos_pub = nh.advertise<std_msgs::Float64>("ODriver/right_wheel/position", 3);
   // left_vel_pub = nh.advertise<std_msgs::Float64>("ODriver/left_wheel/velocity", 3);
@@ -107,6 +109,8 @@ odrive_diff::odrive_diff()
   dsrv = new dynamic_reconfigure::Server<odrive_driver::OdriveConfig>(ros::NodeHandle("~"));
   dynamic_reconfigure::Server<odrive_driver::OdriveConfig>::CallbackType cb = boost::bind(&odrive_diff::reconfigure_callback, this, _1, _2);
   dsrv->setCallback(cb);
+  val8.data = 0;
+  state_pub.publish(val8);
 }
 
 odrive_diff::~odrive_diff()
@@ -176,9 +180,9 @@ void odrive_diff::read()
   // NEW CODE //
   // Collect data
   readOdriveData(endpoint, odrive_json, std::string("vbus_voltage"), fval);
-  // vbus = fval;
+  vbus.data = fval;
 
-  // vbus_pub.publish((std_msgs::Float64)fval);
+  vbus_pub.publish(vbus);
 
   readOdriveData(endpoint, odrive_json, std::string("axis0.error"), u16val);
   error0 = u16val;
@@ -194,6 +198,7 @@ void odrive_diff::read()
     ROS_ERROR("[ODRIVE] Axis error has ocurred, shutting down..");
     ros::shutdown();
   }
+
 
   readOdriveData(endpoint, odrive_json,
                   std::string("axis0.encoder.vel_estimate"), fval);
@@ -335,7 +340,9 @@ void odrive_diff::write(uint8_t motor_state)
       writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
       writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val);
       prv_state = AXIS_STATE_IDLE;
-    }
+      val8.data = 0;
+      state_pub.publish(val8);
+	}
      
   }else if(motor_state == AXIS_STATE_CLOSED_LOOP_CONTROL){
     if(prv_state == AXIS_STATE_IDLE)
@@ -345,6 +352,8 @@ void odrive_diff::write(uint8_t motor_state)
       writeOdriveData(endpoint, odrive_json,std::string("axis0.requested_state"), u8val);
       writeOdriveData(endpoint, odrive_json,std::string("axis1.requested_state"), u8val); 
       prv_state = AXIS_STATE_CLOSED_LOOP_CONTROL;
+      val8.data = 1;
+      state_pub.publish(val8);
     }
     
     // Set velocity

@@ -5,6 +5,7 @@
 #include <hardware_interface/robot_hw.h>
 #include <realtime_tools/realtime_buffer.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Int8.h>
 #include <dynamic_reconfigure/server.h>
 #include "odrive_driver//OdriveConfig.h"
 #include <tf/transform_broadcaster.h>
@@ -58,6 +59,7 @@ private:
     uint8_t connected;
 
     std::string cmd;
+    std_msgs::Int8 val8;
 
     std_msgs::Float64 vbus;     // Bus voltage
     int32_t error0; // Axis 0 error
@@ -96,6 +98,7 @@ private:
 
     // For debug purposes only
     ros::NodeHandle nh;
+    ros::Publisher state_pub;
     // ros::Publisher left_pos_pub, right_pos_pub;
     // ros::Publisher left_vel_pub, right_vel_pub;
     // ros::Publisher left_eff_pub, right_eff_pub;
